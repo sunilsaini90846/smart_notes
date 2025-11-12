@@ -23,12 +23,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _searchQuery = '';
   String? _selectedType;
   bool _isSearching = false;
+  bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadNotes();
+    _initializeAndLoadNotes();
+  }
+
+  Future<void> _initializeAndLoadNotes() async {
+    // Ensure repository is initialized
+    await _repository.initialize();
+
+    if (mounted) {
+      setState(() {
+        _notes = _repository.getAllNotes();
+        _filterNotes();
+        _isLoading = false;
+      });
+    }
   }
 
   void _loadNotes() {
@@ -98,9 +112,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               if (_isSearching) _buildSearchBar(),
               _buildFilterChips(),
               Expanded(
-                child: _filteredNotes.isEmpty
-                    ? _buildEmptyState()
-                    : _buildBirdWingLayout(),
+                child: _isLoading
+                    ? _buildLoadingState()
+                    : _filteredNotes.isEmpty
+                        ? _buildEmptyState()
+                        : _buildBirdWingLayout(),
               ),
             ],
           ),
@@ -394,6 +410,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 curve: Curves.easeOutCubic,
               ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(
+            color: AppTheme.primaryColor,
+          ).animate().fadeIn(duration: 300.ms),
+          const SizedBox(height: 20),
+          Text(
+            'Loading notes...',
+            style: AppTheme.bodyMedium.copyWith(
+              color: Colors.white.withOpacity(0.6),
+            ),
+          ).animate().fadeIn(delay: 200.ms),
+        ],
       ),
     );
   }

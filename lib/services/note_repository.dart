@@ -14,13 +14,36 @@ class NoteRepository {
   factory NoteRepository() => _instance;
   NoteRepository._internal();
 
+  static bool _isInitialized = false;
+  static Future<void>? _initializationFuture;
+
   /// Initialize the Hive box
   Future<void> initialize() async {
-    _box = await Hive.openBox<NoteModel>(_boxName);
+    if (_isInitialized) return;
+
+    if (_initializationFuture != null) {
+      await _initializationFuture;
+      return;
+    }
+
+    _initializationFuture = _initializeBox();
+    await _initializationFuture;
+  }
+
+  Future<void> _initializeBox() async {
+    try {
+      _box = await Hive.openBox<NoteModel>(_boxName);
+      _isInitialized = true;
+    } catch (e) {
+      // If there's an error, reset the initialization state
+      _isInitialized = false;
+      _initializationFuture = null;
+      rethrow;
+    }
   }
 
   /// Check if repository is initialized
-  bool get isInitialized => Hive.isBoxOpen(_boxName);
+  bool get isInitialized => _isInitialized;
 
   /// Get all notes
   List<NoteModel> getAllNotes() {

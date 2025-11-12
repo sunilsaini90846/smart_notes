@@ -17,56 +17,226 @@ class NoteEditorScreen extends StatefulWidget {
 class _NoteEditorScreenState extends State<NoteEditorScreen> {
   final NoteRepository _repository = NoteRepository();
   final _formKey = GlobalKey<FormState>();
-  
+
   late TextEditingController _titleController;
   late TextEditingController _contentController;
   late TextEditingController _passwordController;
-  
+
   String _selectedType = NoteType.plain;
   bool _isEncrypted = false;
   bool _showPassword = false;
   List<String> _tags = [];
   final TextEditingController _tagController = TextEditingController();
-  
+
   bool _isSaving = false;
+  bool _isUnlocked = false;
 
   @override
   void initState() {
     super.initState();
-    
+
     if (widget.note != null) {
       _titleController = TextEditingController(text: widget.note!.title);
       _selectedType = widget.note!.type;
       _isEncrypted = widget.note!.isEncrypted;
       _tags = List.from(widget.note!.tags ?? []);
-      
+
       // For editing, we need to decrypt first if encrypted
       if (widget.note!.isEncrypted) {
         _contentController = TextEditingController();
         _passwordController = TextEditingController();
-        // User will need to unlock to edit
+        _isUnlocked = false;
+        // Show unlock dialog after init
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showUnlockDialog();
+        });
       } else {
         _contentController = TextEditingController(text: widget.note!.content);
         _passwordController = TextEditingController();
+        _isUnlocked = true;
       }
     } else {
       _titleController = TextEditingController();
       _contentController = TextEditingController();
       _passwordController = TextEditingController();
+      _isUnlocked = true;
     }
+  }
+
+  Future<void> _showUnlockDialog() async {
+    if (widget.note == null || !widget.note!.isEncrypted) return;
+
+    final passwordController = TextEditingController();
+    bool showPassword = false;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: GlassCard(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.lock_outline,
+                    size: 64,
+                    color: AppTheme.primaryColor,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Unlock Note for Editing',
+                    style: AppTheme.headingMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Enter password to unlock and edit this note',
+                    style: AppTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: passwordController,
+                    autofocus: true,
+                    obscureText: !showPassword,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Password',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      prefixIcon: const Icon(Icons.key, color: Colors.white70),
+                      suffixIcon: IconButton(
+                        onPressed: () {
+                          setDialogState(() {
+                            showPassword = !showPassword;
+                          });
+                        },
+                        icon: Icon(
+                          showPassword ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.1),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    onSubmitted: (_) {
+                      Navigator.pop(context, true);
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Unlock'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),
+          );
+        },
+      ),
+    );
+
+    if (result == true && mounted) {
+      final password = passwordController.text;
+
+      if (password.isEmpty) {
+        _showErrorSnackBar('Password cannot be empty');
+        // Show dialog again
+        await Future.delayed(const Duration(milliseconds: 300));
+        _showUnlockDialog();
+        return;
+      }
+
+      try {
+        final decrypted = _repository.decryptNoteContent(widget.note!, password);
+        setState(() {
+          _contentController.text = decrypted;
+          _isUnlocked = true;
+        });
+        _showSuccessSnackBar('Note unlocked for editing!');
+      } catch (e) {
+        _showErrorSnackBar('Invalid password');
+        // Show dialog again
+        await Future.delayed(const Duration(milliseconds: 300));
+        _showUnlockDialog();
+      }
+    } else {
+      // User cancelled, go back
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    }
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   Future<void> _saveNote() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // For encrypted notes, we need a password
     if (_isEncrypted && _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a password for encryption'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showErrorSnackBar('Please enter a password for encryption');
       return;
+    }
+
+    // For editing encrypted notes, if user is changing to unencrypted,
+    // we need to make sure they have permission (they already unlocked it)
+    if (widget.note != null && widget.note!.isEncrypted && !_isEncrypted) {
+      // User is decrypting the note, this is allowed since they unlocked it
     }
 
     setState(() => _isSaving = true);
@@ -97,23 +267,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
       if (mounted) {
         Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.note == null ? 'Note created!' : 'Note updated!',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
+        _showSuccessSnackBar(widget.note == null ? 'Note created!' : 'Note updated!');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showErrorSnackBar('Error: $e');
       }
     } finally {
       if (mounted) {
@@ -167,7 +325,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                         _buildContentField(),
                         const SizedBox(height: 20),
                         _buildEncryptionToggle(),
-                        if (_isEncrypted) ...[
+                        if (_isEncrypted && _isUnlocked) ...[
                           const SizedBox(height: 20),
                           _buildPasswordField(),
                         ],
@@ -298,6 +456,49 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   }
 
   Widget _buildContentField() {
+    // If editing encrypted note and not unlocked yet, show locked state
+    if (widget.note != null && widget.note!.isEncrypted && !_isUnlocked) {
+      return GlassCard(
+        child: Column(
+          children: [
+            const Icon(
+              Icons.lock_outline,
+              size: 48,
+              color: AppTheme.primaryColor,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Note is locked',
+              style: AppTheme.headingSmall,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Unlock the note to edit its content',
+              style: AppTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _showUnlockDialog,
+              icon: const Icon(Icons.lock_open),
+              label: const Text('Unlock Note'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ).animate().fadeIn(delay: 300.ms).slideY(begin: -0.2);
+    }
+
     return GlassCard(
       child: TextFormField(
         controller: _contentController,
