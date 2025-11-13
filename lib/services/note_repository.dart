@@ -53,10 +53,8 @@ class NoteRepository {
 
   /// Get a single note by ID
   NoteModel? getNoteById(String id) {
-    return _box.values.firstWhere(
-      (note) => note.id == id,
-      orElse: () => throw NoteNotFoundException('Note with id $id not found'),
-    );
+    // Use box.get() for direct key access - more efficient and consistent
+    return _box.get(id);
   }
 
   /// Get notes by type
@@ -127,8 +125,14 @@ class NoteRepository {
       color: color,
     );
 
-    await _box.put(id, note);
-    return note;
+    try {
+      await _box.put(id, note);
+      // Force flush to disk to prevent data loss
+      await _box.flush();
+      return note;
+    } catch (e) {
+      throw NoteRepositoryException('Failed to save note: $e');
+    }
   }
 
   /// Update an existing note
@@ -143,7 +147,7 @@ class NoteRepository {
     List<String>? tags,
     String? color,
   }) async {
-    final existingNote = getNoteById(id);
+    final existingNote = _box.get(id);
     if (existingNote == null) {
       throw NoteNotFoundException('Cannot update note: Note with id $id not found');
     }
@@ -168,22 +172,46 @@ class NoteRepository {
       color: color,
     );
 
-    await _box.put(id, updatedNote);
+    try {
+      await _box.put(id, updatedNote);
+      // Force flush to disk to prevent data loss
+      await _box.flush();
+    } catch (e) {
+      throw NoteRepositoryException('Failed to update note: $e');
+    }
   }
 
   /// Delete a note
   Future<void> deleteNote(String id) async {
-    await _box.delete(id);
+    try {
+      await _box.delete(id);
+      // Force flush to disk to prevent data loss
+      await _box.flush();
+    } catch (e) {
+      throw NoteRepositoryException('Failed to delete note: $e');
+    }
   }
 
   /// Delete multiple notes
   Future<void> deleteNotes(List<String> ids) async {
-    await _box.deleteAll(ids);
+    try {
+      await _box.deleteAll(ids);
+      // Force flush to disk to prevent data loss
+      await _box.flush();
+    } catch (e) {
+      throw NoteRepositoryException('Failed to delete notes: $e');
+    }
   }
 
   /// Delete all notes (use with caution)
   Future<void> deleteAllNotes() async {
-    await _box.clear();
+    try {
+      await _box.clear();
+      // Force flush to disk to prevent data loss
+      await _box.flush();
+    } catch (e) {
+      throw NoteRepositoryException('Failed to clear all notes: $e');
+    }
   }
 
   /// Decrypt note content
@@ -232,9 +260,15 @@ class NoteRepository {
 
   /// Import notes from JSON
   Future<void> importNotes(List<Map<String, dynamic>> notesJson) async {
-    for (final json in notesJson) {
-      final note = NoteModel.fromJson(json);
-      await _box.put(note.id, note);
+    try {
+      for (final json in notesJson) {
+        final note = NoteModel.fromJson(json);
+        await _box.put(note.id, note);
+      }
+      // Force flush to disk after batch import
+      await _box.flush();
+    } catch (e) {
+      throw NoteRepositoryException('Failed to import notes: $e');
     }
   }
 
@@ -255,5 +289,13 @@ class NoteNotFoundException implements Exception {
 
   @override
   String toString() => 'NoteNotFoundException: $message';
+}
+
+class NoteRepositoryException implements Exception {
+  final String message;
+  NoteRepositoryException(this.message);
+
+  @override
+  String toString() => 'NoteRepositoryException: $message';
 }
 

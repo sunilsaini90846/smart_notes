@@ -7,6 +7,7 @@ import '../utils/app_theme.dart';
 import '../widgets/glass_card.dart';
 import 'note_editor_screen.dart';
 import 'note_detail_screen.dart';
+import 'sub_accounts_screen.dart';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,7 +17,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   final NoteRepository _repository = NoteRepository();
   List<NoteModel> _notes = [];
   List<NoteModel> _filteredNotes = [];
@@ -29,7 +30,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeAndLoadNotes();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // Flush data to disk when app goes to background or is paused
+    if (state == AppLifecycleState.paused || 
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      // Close the Hive box properly to prevent data loss
+      _repository.close();
+    }
   }
 
   Future<void> _initializeAndLoadNotes() async {
@@ -92,6 +107,96 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (result == true) {
       _loadNotes();
     }
+  }
+
+  void _navigateToSubAccounts(NoteModel note) async {
+    if (note.meta == null || note.meta!['subAccounts'] == null) return;
+    
+    // Make a copy of sub-accounts
+    final subAccounts = (note.meta!['subAccounts'] as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SubAccountsScreen(
+          subAccounts: subAccounts,
+          mainAccountName: note.meta!['accountName']?.toString() ?? note.title,
+          onSubAccountsChanged: (updatedSubAccounts) {
+            // Update the note with new sub-accounts
+            _updateNoteSubAccounts(note, updatedSubAccounts);
+          },
+        ),
+      ),
+    );
+
+    // Reload notes after returning from sub-accounts screen
+    _loadNotes();
+  }
+
+  void _addSubAccount(NoteModel note) async {
+    final mainAccountName = note.meta?['accountName']?.toString() ?? note.title;
+    
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SubAccountEditorScreen(
+          mainAccountName: mainAccountName,
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      // Add the new sub-account to the note
+      final meta = note.meta ?? {};
+      final subAccounts = List<Map<String, dynamic>>.from(
+        meta['subAccounts'] as List? ?? [],
+      );
+      subAccounts.add(result);
+      
+      _updateNoteSubAccounts(note, subAccounts);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Sub-account added'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
+  void _updateNoteSubAccounts(NoteModel note, List<Map<String, dynamic>> subAccounts) async {
+    // Deep copy the meta to avoid reference issues
+    final meta = _deepCopyMap(note.meta ?? {});
+    // Deep copy sub-accounts as well
+    meta['subAccounts'] = subAccounts.map((sa) => Map<String, dynamic>.from(sa)).toList();
+    
+    await _repository.updateNote(
+      note.id,
+      meta: meta,
+    );
+    
+    _loadNotes();
+  }
+
+  /// Deep copy a map to avoid reference issues
+  Map<String, dynamic> _deepCopyMap(Map<String, dynamic> original) {
+    final copy = <String, dynamic>{};
+    original.forEach((key, value) {
+      if (value is Map) {
+        copy[key] = _deepCopyMap(Map<String, dynamic>.from(value));
+      } else if (value is List) {
+        copy[key] = List.from(value.map((e) => 
+          e is Map ? _deepCopyMap(Map<String, dynamic>.from(e)) : e
+        ));
+      } else {
+        copy[key] = value;
+      }
+    });
+    return copy;
   }
 
   @override
@@ -272,6 +377,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildNoteCard(NoteModel note, {required bool isLeft, required int index}) {
     final color = AppTheme.getColorByType(note.type);
     final delay = (index * 100).ms;
+    final isAccountNote = note.type == NoteType.account;
+    final subAccountsCount = isAccountNote && note.meta != null && note.meta!['subAccounts'] != null
+        ? (note.meta!['subAccounts'] as List).length
+        : 0;
 
     return Align(
       alignment: isLeft ? Alignment.centerLeft : Alignment.centerRight,
@@ -283,132 +392,236 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             left: isLeft ? 0 : 30,
             right: isLeft ? 30 : 0,
           ),
-          child: AnimatedGlassCard(
-            onTap: () => _navigateToDetail(note),
-            gradient: [
-              color.withOpacity(0.3),
-              color.withOpacity(0.1),
-            ],
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: Stack(
+            children: [
+              AnimatedGlassCard(
+                onTap: () => _navigateToDetail(note),
+                gradient: [
+                  color.withOpacity(0.3),
+                  color.withOpacity(0.1),
+                ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            NoteType.getIcon(note.type),
-                            style: const TextStyle(fontSize: 14),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
                           ),
-                          const SizedBox(width: 4),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                NoteType.getIcon(note.type),
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                NoteType.getDisplayName(note.type),
+                                style: AppTheme.caption.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        if (note.isEncrypted)
+                          const Icon(
+                            Icons.lock,
+                            size: 16,
+                            color: Colors.white70,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      note.title,
+                      style: AppTheme.headingSmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    if (!note.isEncrypted)
+                      Text(
+                        note.content,
+                        style: AppTheme.bodyMedium,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    else
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.lock_outline,
+                            size: 14,
+                            color: Colors.white54,
+                          ),
+                          const SizedBox(width: 6),
                           Text(
-                            NoteType.getDisplayName(note.type),
+                            'Tap to unlock',
                             style: AppTheme.caption.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                              fontStyle: FontStyle.italic,
                             ),
                           ),
                         ],
                       ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 12,
+                          color: Colors.white.withOpacity(0.5),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatDate(note.updatedAt),
+                          style: AppTheme.caption,
+                        ),
+                        const Spacer(),
+                        if (note.tags != null && note.tags!.isNotEmpty)
+                          Wrap(
+                            spacing: 4,
+                            children: note.tags!.take(2).map((tag) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '#$tag',
+                                  style: AppTheme.caption.copyWith(fontSize: 10),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                      ],
                     ),
-                    const Spacer(),
-                    if (note.isEncrypted)
-                      const Icon(
-                        Icons.lock,
-                        size: 16,
-                        color: Colors.white70,
-                      ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  note.title,
-                  style: AppTheme.headingSmall,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                if (!note.isEncrypted)
-                  Text(
-                    note.content,
-                    style: AppTheme.bodyMedium,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  )
-                else
-                  Row(
+              )
+                  .animate()
+                  .fadeIn(delay: delay, duration: 400.ms)
+                  .slideX(
+                    begin: isLeft ? -0.3 : 0.3,
+                    delay: delay,
+                    duration: 400.ms,
+                    curve: Curves.easeOutCubic,
+                  ),
+              // Action buttons for Account notes
+              if (isAccountNote)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.lock_outline,
-                        size: 14,
-                        color: Colors.white54,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Tap to unlock',
-                        style: AppTheme.caption.copyWith(
-                          fontStyle: FontStyle.italic,
+                      // View all sub-accounts button
+                      if (subAccountsCount > 0) ...[
+                        InkWell(
+                          onTap: () => _navigateToSubAccounts(note),
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor.withOpacity(0.9),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppTheme.primaryColor.withOpacity(0.3),
+                                  blurRadius: 6,
+                                  spreadRadius: 0.5,
+                                ),
+                              ],
+                            ),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              alignment: Alignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.account_tree,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                                Positioned(
+                                  right: -4,
+                                  top: -4,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: AppTheme.surfaceColor,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 14,
+                                      minHeight: 14,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        subAccountsCount.toString(),
+                                        style: const TextStyle(
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          height: 1,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ).animate().scale(delay: delay + 100.ms),
+                        const SizedBox(width: 6),
+                      ],
+                      // Add sub-account button
+                      InkWell(
+                        onTap: () => _addSubAccount(note),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withOpacity(0.9),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primaryColor.withOpacity(0.3),
+                                blurRadius: 6,
+                                spreadRadius: 0.5,
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.add,
+                            size: 16,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
+                      ).animate().scale(delay: delay + 150.ms),
                     ],
                   ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.access_time,
-                      size: 12,
-                      color: Colors.white.withOpacity(0.5),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _formatDate(note.updatedAt),
-                      style: AppTheme.caption,
-                    ),
-                    const Spacer(),
-                    if (note.tags != null && note.tags!.isNotEmpty)
-                      Wrap(
-                        spacing: 4,
-                        children: note.tags!.take(2).map((tag) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '#$tag',
-                              style: AppTheme.caption.copyWith(fontSize: 10),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                  ],
                 ),
-              ],
-            ),
-          )
-              .animate()
-              .fadeIn(delay: delay, duration: 400.ms)
-              .slideX(
-                begin: isLeft ? -0.3 : 0.3,
-                delay: delay,
-                duration: 400.ms,
-                curve: Curves.easeOutCubic,
-              ),
+            ],
+          ),
         ),
       ),
     );
@@ -488,7 +701,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
+    // Close Hive box when screen is disposed
+    _repository.close();
     super.dispose();
   }
 }

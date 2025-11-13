@@ -7,6 +7,7 @@ import '../services/note_repository.dart';
 import '../utils/app_theme.dart';
 import '../widgets/glass_card.dart';
 import 'note_editor_screen.dart';
+import 'sub_accounts_screen.dart';
 
 class NoteDetailScreen extends StatefulWidget {
   final NoteModel note;
@@ -488,6 +489,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       ).animate().fadeIn(delay: 200.ms).scale(duration: 400.ms);
     }
 
+    // Display account notes with structured data
+    if (_note.type == NoteType.account && _note.meta != null) {
+      return _buildAccountDetails();
+    }
+
+    // Default content display for other note types
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -514,6 +521,450 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         ],
       ),
     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2, duration: 400.ms);
+  }
+
+  Widget _buildAccountDetails() {
+    final meta = _note.meta!;
+    
+    return Column(
+      children: [
+        // Account Name
+        if (meta['accountName'] != null && meta['accountName'].toString().isNotEmpty)
+          GlassCard(
+            child: Row(
+              children: [
+                const Icon(Icons.business, color: Colors.white70, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Account Name',
+                        style: AppTheme.caption,
+                      ),
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        meta['accountName'],
+                        style: AppTheme.bodyLarge.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: meta['accountName']));
+                    _showSuccessSnackBar('Account name copied');
+                  },
+                  icon: const Icon(Icons.copy, color: Colors.white70, size: 18),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2),
+        
+        const SizedBox(height: 12),
+        
+        // Identifiers (Username/Email/Phone)
+        if (meta['identifiers'] != null && (meta['identifiers'] as List).isNotEmpty)
+          ...((meta['identifiers'] as List).asMap().entries.map((entry) {
+            final identifier = Map<String, dynamic>.from(entry.value as Map);
+            final index = entry.key;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: GlassCard(
+                child: Row(
+                  children: [
+                    Icon(
+                      _getIdentifierIcon(identifier['type']?.toString()),
+                      color: Colors.white70,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            identifier['type']?.toString() ?? 'Identifier',
+                            style: AppTheme.caption,
+                          ),
+                          const SizedBox(height: 4),
+                          SelectableText(
+                            identifier['value']?.toString() ?? '',
+                            style: AppTheme.bodyLarge,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: identifier['value']?.toString() ?? ''));
+                        _showSuccessSnackBar('${identifier['type']?.toString() ?? 'Value'} copied');
+                      },
+                      icon: const Icon(Icons.copy, color: Colors.white70, size: 18),
+                    ),
+                  ],
+                ),
+              ).animate().fadeIn(delay: (250 + index * 50).ms).slideY(begin: 0.2),
+            );
+          }).toList()),
+        
+        // Password
+        if (meta['accountPassword'] != null && meta['accountPassword'].toString().isNotEmpty)
+          GlassCard(
+            child: Row(
+              children: [
+                const Icon(Icons.lock, color: Colors.white70, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Password',
+                        style: AppTheme.caption,
+                      ),
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        meta['accountPassword'],
+                        style: AppTheme.bodyLarge.copyWith(
+                          fontFamily: 'monospace',
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: meta['accountPassword']));
+                    _showSuccessSnackBar('Password copied');
+                  },
+                  icon: const Icon(Icons.copy, color: Colors.white70, size: 18),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: 350.ms).slideY(begin: 0.2),
+        
+        // Subscription Section
+        if (meta['hasSubscription'] == true) ...[
+          const SizedBox(height: 12),
+          GlassCard(
+            gradient: [
+              AppTheme.primaryColor.withOpacity(0.2),
+              AppTheme.primaryColor.withOpacity(0.05),
+            ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.subscriptions, color: Colors.white70, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Subscription Details',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                // Plan Name
+                if (meta['planName'] != null && meta['planName'].toString().isNotEmpty) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.card_membership, color: Colors.white60, size: 18),
+                      const SizedBox(width: 8),
+                      const Text('Plan: ', style: AppTheme.caption),
+                      SelectableText(
+                        meta['planName'],
+                        style: AppTheme.bodyLarge.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                
+                // Start Date
+                if (meta['subscriptionStartDate'] != null) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.calendar_today, color: Colors.white60, size: 18),
+                      const SizedBox(width: 8),
+                      const Text('Start: ', style: AppTheme.caption),
+                      Text(
+                        DateFormat('MMM d, y').format(
+                          DateTime.parse(meta['subscriptionStartDate']),
+                        ),
+                        style: AppTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                
+                // End Date
+                if (meta['subscriptionEndDate'] != null) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.event, color: Colors.white60, size: 18),
+                      const SizedBox(width: 8),
+                      const Text('End: ', style: AppTheme.caption),
+                      Text(
+                        DateFormat('MMM d, y').format(
+                          DateTime.parse(meta['subscriptionEndDate']),
+                        ),
+                        style: AppTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.2),
+        ],
+        
+        // Sub-Accounts Section
+        if (meta['subAccounts'] != null && (meta['subAccounts'] as List).isNotEmpty) ...[
+          const SizedBox(height: 12),
+          GlassCard(
+            gradient: [
+              Colors.deepPurple.withOpacity(0.2),
+              Colors.deepPurple.withOpacity(0.05),
+            ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.account_tree, color: Colors.white70, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Sub-Accounts (${(meta['subAccounts'] as List).length})',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _viewAllSubAccounts(meta),
+                      icon: const Icon(Icons.arrow_forward, size: 18),
+                      label: const Text('View All'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.deepPurple,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Accounts linked to this main account',
+                  style: AppTheme.caption,
+                ),
+                const SizedBox(height: 16),
+                // Show first 3 sub-accounts
+                ...((meta['subAccounts'] as List).take(3).toList().asMap().entries.map((entry) {
+                  final subAccount = Map<String, dynamic>.from(entry.value as Map);
+                  final index = entry.key;
+                  return _buildSubAccountCard(subAccount, index);
+                }).toList()),
+                if ((meta['subAccounts'] as List).length > 3) ...[
+                  const SizedBox(height: 12),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: () => _viewAllSubAccounts(meta),
+                      icon: const Icon(Icons.arrow_forward, size: 18),
+                      label: Text(
+                        '+${(meta['subAccounts'] as List).length - 3} more sub-accounts',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ).animate().fadeIn(delay: 450.ms).slideY(begin: 0.2),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSubAccountCard(Map<String, dynamic> subAccount, int index) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.deepPurple.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.deepPurple.withOpacity(0.3),
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.account_circle,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        subAccount['name']?.toString() ?? 'Sub-Account',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (subAccount['username'] != null && 
+                          subAccount['username'].toString().isNotEmpty)
+                        Text(
+                          subAccount['username'].toString(),
+                          style: AppTheme.caption,
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            
+            // Username/Email section
+            if (subAccount['username'] != null && 
+                subAccount['username'].toString().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              const Divider(color: Colors.white24, height: 1),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.person, color: Colors.white60, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SelectableText(
+                      subAccount['username'].toString(),
+                      style: AppTheme.bodyMedium,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: subAccount['username'].toString()));
+                      _showSuccessSnackBar('Username copied');
+                    },
+                    icon: const Icon(Icons.copy, color: Colors.white60, size: 16),
+                  ),
+                ],
+              ),
+            ],
+            
+            // Password section
+            if (subAccount['password'] != null && 
+                subAccount['password'].toString().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              const Divider(color: Colors.white24, height: 1),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.lock, color: Colors.white60, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SelectableText(
+                      subAccount['password'].toString(),
+                      style: AppTheme.bodyMedium.copyWith(
+                        fontFamily: 'monospace',
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: subAccount['password'].toString()));
+                      _showSuccessSnackBar('Password copied');
+                    },
+                    icon: const Icon(Icons.copy, color: Colors.white60, size: 16),
+                  ),
+                ],
+              ),
+            ],
+            
+            // Notes section
+            if (subAccount['notes'] != null && 
+                subAccount['notes'].toString().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              const Divider(color: Colors.white24, height: 1),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.notes, color: Colors.white60, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SelectableText(
+                      subAccount['notes'].toString(),
+                      style: AppTheme.caption.copyWith(height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getIdentifierIcon(String? type) {
+    switch (type) {
+      case 'Email':
+        return Icons.email;
+      case 'Phone Number':
+        return Icons.phone;
+      case 'Username':
+        return Icons.person;
+      default:
+        return Icons.info;
+    }
+  }
+
+  void _viewAllSubAccounts(Map<String, dynamic> meta) {
+    final subAccounts = (meta['subAccounts'] as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SubAccountsScreen(
+          subAccounts: subAccounts,
+          mainAccountName: meta['accountName']?.toString() ?? 'Main Account',
+          onSubAccountsChanged: (updatedSubAccounts) {
+            // Sub-accounts can't be edited from detail screen - read-only
+            // User needs to edit the note to modify sub-accounts
+          },
+        ),
+      ),
+    );
   }
 
   Widget _buildMetadata() {

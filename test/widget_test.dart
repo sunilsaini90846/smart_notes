@@ -1,10 +1,10 @@
-// This is a basic Flutter widget test for the Notes Manager app.
+// This is a basic Flutter widget test for the Account Note Book app.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:notes_manager/main.dart';
+import 'package:account_note_book/main.dart';
 
 void main() {
-  testWidgets('Notes app launches successfully', (WidgetTester tester) async {
+  testWidgets('Account Note Book app launches successfully', (WidgetTester tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const NotesApp());
 
