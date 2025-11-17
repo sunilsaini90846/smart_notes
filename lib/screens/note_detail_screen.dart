@@ -634,6 +634,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       return _buildAccountDetails();
     }
 
+    // Display bank/card notes with structured data
+    if (_note.type == NoteType.bank && _note.meta != null) {
+      return _buildBankCardDetails();
+    }
+
     // Default content display for other note types
     return GlassCard(
       child: Column(
@@ -1071,6 +1076,240 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBankCardDetails() {
+    final meta = _note.meta!;
+    
+    return Column(
+      children: [
+        // Card Name
+        if (meta['cardName'] != null && meta['cardName'].toString().isNotEmpty)
+          GlassCard(
+            child: Row(
+              children: [
+                const Icon(Icons.credit_card, color: Colors.white70, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Card Name',
+                        style: AppTheme.caption,
+                      ),
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        meta['cardName'],
+                        style: AppTheme.bodyLarge.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: meta['cardName']));
+                    _showSuccessSnackBar('Card name copied');
+                  },
+                  icon: const Icon(Icons.copy, color: Colors.white70, size: 18),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2),
+        
+        const SizedBox(height: 12),
+        
+        // Card Number
+        if (meta['cardNumber'] != null && meta['cardNumber'].toString().isNotEmpty)
+          GlassCard(
+            child: Row(
+              children: [
+                const Icon(Icons.numbers, color: Colors.white70, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Card Number',
+                        style: AppTheme.caption,
+                      ),
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        meta['cardNumber'],
+                        style: AppTheme.bodyLarge.copyWith(
+                          fontFamily: 'monospace',
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: meta['cardNumber']));
+                    _showSuccessSnackBar('Card number copied');
+                  },
+                  icon: const Icon(Icons.copy, color: Colors.white70, size: 18),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: 250.ms).slideY(begin: 0.2),
+        
+        const SizedBox(height: 12),
+        
+        // CVV
+        if (meta['cardCvv'] != null && meta['cardCvv'].toString().isNotEmpty)
+          GlassCard(
+            child: Row(
+              children: [
+                const Icon(Icons.security, color: Colors.white70, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'CVV',
+                        style: AppTheme.caption,
+                      ),
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        meta['cardCvv'],
+                        style: AppTheme.bodyLarge.copyWith(
+                          fontFamily: 'monospace',
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: meta['cardCvv']));
+                    _showSuccessSnackBar('CVV copied');
+                  },
+                  icon: const Icon(Icons.copy, color: Colors.white70, size: 18),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
+        
+        const SizedBox(height: 12),
+        
+        // Expiration Date
+        if (meta['cardExpirationDate'] != null)
+          GlassCard(
+            child: Row(
+              children: [
+                const Icon(Icons.calendar_month, color: Colors.white70, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Expiration Date',
+                        style: AppTheme.caption,
+                      ),
+                      const SizedBox(height: 4),
+                      Builder(
+                        builder: (context) {
+                          final expDate = DateTime.parse(meta['cardExpirationDate']);
+                          final now = DateTime.now();
+                          final isExpired = expDate.isBefore(now);
+                          final isExpiringSoon = expDate.isAfter(now) && 
+                                                expDate.difference(now).inDays <= 30;
+                          
+                          return Row(
+                            children: [
+                              Text(
+                                '${expDate.month.toString().padLeft(2, '0')}/${expDate.year}',
+                                style: AppTheme.bodyLarge.copyWith(
+                                  color: isExpired 
+                                      ? Colors.red 
+                                      : isExpiringSoon 
+                                          ? Colors.orange 
+                                          : Colors.white,
+                                  fontWeight: isExpired || isExpiringSoon 
+                                      ? FontWeight.bold 
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                              if (isExpired) ...[
+                                const SizedBox(width: 8),
+                                const Icon(Icons.warning, color: Colors.red, size: 16),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  'Expired',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ] else if (isExpiringSoon) ...[
+                                const SizedBox(width: 8),
+                                const Icon(Icons.warning_amber, color: Colors.orange, size: 16),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  'Expiring Soon',
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: 350.ms).slideY(begin: 0.2),
+        
+        // Subscription/Bills Section
+        if (meta['hasCardSubscription'] == true && 
+            meta['cardSubscription'] != null && 
+            meta['cardSubscription'].toString().isNotEmpty) ...[
+          const SizedBox(height: 12),
+          GlassCard(
+            gradient: [
+              AppTheme.primaryColor.withOpacity(0.2),
+              AppTheme.primaryColor.withOpacity(0.05),
+            ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.subscriptions, color: Colors.white70, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Subscription / Bills Auto-pay',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SelectableText(
+                  meta['cardSubscription'],
+                  style: AppTheme.bodyLarge.copyWith(height: 1.6),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.2),
+        ],
+      ],
     );
   }
 

@@ -141,7 +141,7 @@ class NoteType {
   static const String bank = 'bank';
   static const String subscription = 'subscription';
 
-  static List<String> get all => [plain, account, password, bank, subscription];
+  static List<String> get all => [plain, account, bank, subscription];
 
   static String getDisplayName(String type) {
     switch (type) {

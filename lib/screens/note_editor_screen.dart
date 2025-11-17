@@ -42,6 +42,14 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   DateTime? _subscriptionEndDate;
   List<Map<String, dynamic>> _subAccounts = []; // Sub-accounts linked to this main account
 
+  // Bank/Card note specific fields
+  final TextEditingController _cardNameController = TextEditingController();
+  final TextEditingController _cardNumberController = TextEditingController();
+  final TextEditingController _cardCvvController = TextEditingController();
+  DateTime? _cardExpirationDate;
+  List<Map<String, dynamic>> _cardSubscriptions = []; // Subscriptions/bills on this card
+  List<Map<String, dynamic>> _cardSubAccounts = []; // Sub-cards linked to this main card
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +62,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       // Load account-specific data if it's an account note
       if (_selectedType == NoteType.account && widget.note!.meta != null) {
         _loadAccountData(widget.note!.meta!);
+      }
+
+      // Load bank/card-specific data if it's a bank note
+      if (_selectedType == NoteType.bank && widget.note!.meta != null) {
+        _loadBankCardData(widget.note!.meta!);
       }
 
       // For editing, we need to decrypt first if encrypted
@@ -105,6 +118,28 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     
     if (meta['subAccounts'] != null) {
       _subAccounts = (meta['subAccounts'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    }
+  }
+
+  void _loadBankCardData(Map<String, dynamic> meta) {
+    _cardNameController.text = meta['cardName']?.toString() ?? '';
+    _cardNumberController.text = meta['cardNumber']?.toString() ?? '';
+    _cardCvvController.text = meta['cardCvv']?.toString() ?? '';
+    
+    if (meta['cardExpirationDate'] != null) {
+      _cardExpirationDate = DateTime.parse(meta['cardExpirationDate'].toString());
+    }
+    
+    if (meta['subscriptions'] != null) {
+      _cardSubscriptions = (meta['subscriptions'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    }
+    
+    if (meta['subAccounts'] != null) {
+      _cardSubAccounts = (meta['subAccounts'] as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
     }
@@ -297,6 +332,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         // For account notes, store structured data in meta
         meta = _buildAccountMeta();
         content = _buildAccountSummary(); // Create a readable summary for content
+      } else if (_selectedType == NoteType.bank) {
+        // For bank/card notes, store structured data in meta
+        meta = _buildBankCardMeta();
+        content = _buildBankCardSummary(); // Create a readable summary for content
       }
 
       if (widget.note == null) {
@@ -375,6 +414,53 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       buffer.writeln('\nSub-Accounts: ${_subAccounts.length}');
       for (var subAccount in _subAccounts) {
         buffer.writeln('  - ${subAccount['name']}');
+      }
+    }
+    
+    return buffer.toString();
+  }
+
+  Map<String, dynamic> _buildBankCardMeta() {
+    return {
+      'cardName': _cardNameController.text,
+      'cardNumber': _cardNumberController.text,
+      'cardCvv': _cardCvvController.text,
+      'cardExpirationDate': _cardExpirationDate?.toIso8601String(),
+      'subscriptions': _cardSubscriptions,
+      'subAccounts': _cardSubAccounts,
+    };
+  }
+
+  String _buildBankCardSummary() {
+    final buffer = StringBuffer();
+    buffer.writeln('Card: ${_cardNameController.text}');
+    
+    if (_cardNumberController.text.isNotEmpty) {
+      // Mask card number for security (show last 4 digits)
+      final cardNum = _cardNumberController.text.replaceAll(' ', '');
+      if (cardNum.length >= 4) {
+        buffer.writeln('Card Number: •••• ${cardNum.substring(cardNum.length - 4)}');
+      } else {
+        buffer.writeln('Card Number: ${_cardNumberController.text}');
+      }
+    }
+    
+    if (_cardExpirationDate != null) {
+      final expiry = '${_cardExpirationDate!.month.toString().padLeft(2, '0')}/${_cardExpirationDate!.year.toString().substring(2)}';
+      buffer.writeln('Expires: $expiry');
+    }
+    
+    if (_cardSubscriptions.isNotEmpty) {
+      buffer.writeln('\nSubscriptions/Bills: ${_cardSubscriptions.length}');
+      for (var sub in _cardSubscriptions) {
+        buffer.writeln('  - ${sub['name']}');
+      }
+    }
+    
+    if (_cardSubAccounts.isNotEmpty) {
+      buffer.writeln('\nLinked Cards: ${_cardSubAccounts.length}');
+      for (var subCard in _cardSubAccounts) {
+        buffer.writeln('  - ${subCard['accountName']}');
       }
     }
     
@@ -590,6 +676,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     // Show account form for account type
     if (_selectedType == NoteType.account) {
       return _buildAccountForm();
+    }
+
+    // Show bank/card form for bank type
+    if (_selectedType == NoteType.bank) {
+      return _buildBankCardForm();
     }
 
     // Default content field for other types
@@ -1681,6 +1772,728 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _showSuccessSnackBar('Sub-account removed');
   }
 
+  Widget _buildBankCardForm() {
+    return Column(
+      children: [
+        // Card Name (Required)
+        GlassCard(
+          child: TextFormField(
+            controller: _cardNameController,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            decoration: const InputDecoration(
+              labelText: 'Card Name',
+              labelStyle: TextStyle(color: Colors.white70),
+              hintText: 'e.g., Visa Platinum, Chase Freedom',
+              hintStyle: TextStyle(color: Colors.white38),
+              border: InputBorder.none,
+              icon: Icon(Icons.credit_card, color: Colors.white70),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter card name';
+              }
+              return null;
+            },
+          ),
+        ).animate().fadeIn(delay: 300.ms).slideY(begin: -0.2),
+        
+        const SizedBox(height: 16),
+        
+        // Card Number (Optional)
+        GlassCard(
+          child: TextFormField(
+            controller: _cardNumberController,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Card Number (Optional)',
+              labelStyle: TextStyle(color: Colors.white70),
+              hintText: '•••• •••• •••• ••••',
+              hintStyle: TextStyle(color: Colors.white38),
+              border: InputBorder.none,
+              icon: Icon(Icons.numbers, color: Colors.white70),
+            ),
+          ),
+        ).animate().fadeIn(delay: 350.ms).slideY(begin: -0.2),
+        
+        const SizedBox(height: 16),
+        
+        // Card CVV (Optional)
+        GlassCard(
+          child: TextFormField(
+            controller: _cardCvvController,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            keyboardType: TextInputType.number,
+            maxLength: 4,
+            decoration: const InputDecoration(
+              labelText: 'CVV (Optional)',
+              labelStyle: TextStyle(color: Colors.white70),
+              hintText: '•••',
+              hintStyle: TextStyle(color: Colors.white38),
+              border: InputBorder.none,
+              icon: Icon(Icons.security, color: Colors.white70),
+              counterText: '',
+            ),
+          ),
+        ).animate().fadeIn(delay: 400.ms).slideY(begin: -0.2),
+        
+        const SizedBox(height: 16),
+        
+        // Expiration Date (Optional)
+        GlassCard(
+          child: InkWell(
+            onTap: () => _selectCardExpirationDate(context),
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Expiration Date (Optional)',
+                labelStyle: TextStyle(color: Colors.white70),
+                border: InputBorder.none,
+                icon: Icon(Icons.calendar_today, color: Colors.white70),
+              ),
+              child: Text(
+                _cardExpirationDate != null
+                    ? '${_cardExpirationDate!.month.toString().padLeft(2, '0')}/${_cardExpirationDate!.year}'
+                    : 'Select expiration date',
+                style: TextStyle(
+                  color: _cardExpirationDate != null
+                      ? Colors.white
+                      : Colors.white38,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+        ).animate().fadeIn(delay: 450.ms).slideY(begin: -0.2),
+        
+        const SizedBox(height: 16),
+        
+        // Security Warning
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.orange.withOpacity(0.3),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orange.shade300,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Security Note: Card information is stored in plain text. For maximum security, use the encryption toggle below the form to encrypt this entire note.',
+                  style: TextStyle(
+                    color: Colors.orange.shade100,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ).animate().fadeIn(delay: 480.ms),
+        
+        const SizedBox(height: 16),
+        
+        // Subscriptions/Bills Section
+        _buildCardSubscriptionsSection(),
+        
+        const SizedBox(height: 16),
+        
+        // Sub-Cards Section (similar to sub-accounts)
+        _buildCardSubAccountsSection(),
+      ],
+    );
+  }
+
+  Future<void> _selectCardExpirationDate(BuildContext context) async {
+    final initialDate = _cardExpirationDate ?? DateTime.now();
+    
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2050),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppTheme.primaryColor,
+              onPrimary: Colors.white,
+              surface: AppTheme.surfaceColor,
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedDate != null) {
+      setState(() {
+        _cardExpirationDate = pickedDate;
+      });
+    }
+  }
+
+  Widget _buildCardSubscriptionsSection() {
+    return GlassCard(
+      gradient: [
+        Colors.green.withOpacity(0.2),
+        Colors.green.withOpacity(0.05),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.subscriptions, color: Colors.white70, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Subscriptions / Bills Auto-pay',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              IconButton(
+                onPressed: _addCardSubscription,
+                icon: const Icon(Icons.add_circle, color: Colors.green),
+                tooltip: 'Add subscription/bill',
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Track subscriptions and bills paid with this card (${_cardSubscriptions.length})',
+            style: AppTheme.caption,
+          ),
+          const SizedBox(height: 12),
+          if (_cardSubscriptions.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: TextButton.icon(
+                  onPressed: _addCardSubscription,
+                  icon: const Icon(Icons.add, color: Colors.white70),
+                  label: const Text(
+                    'Add subscription/bill (e.g., Netflix, Utilities)',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+              ),
+            )
+          else
+            Column(
+              children: _cardSubscriptions.asMap().entries.map((entry) {
+                final index = entry.key;
+                final subscription = entry.value;
+                return _buildCardSubscriptionCard(index, subscription);
+              }).toList(),
+            ),
+        ],
+      ),
+    ).animate().fadeIn(delay: 500.ms).slideY(begin: -0.2);
+  }
+
+  Widget _buildCardSubscriptionCard(int index, Map<String, dynamic> subscription) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: Colors.green.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(
+                Icons.payment,
+                color: Colors.white,
+                size: 16,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    subscription['name']?.toString() ?? 'Subscription',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (subscription['amount'] != null)
+                    Text(
+                      '\$${subscription['amount']}',
+                      style: AppTheme.caption.copyWith(color: Colors.green.shade300),
+                    ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: () => _editCardSubscription(index),
+              icon: const Icon(Icons.edit, color: Colors.white70, size: 16),
+              tooltip: 'Edit',
+            ),
+            IconButton(
+              onPressed: () => _removeCardSubscription(index),
+              icon: const Icon(Icons.delete, color: Colors.redAccent, size: 16),
+              tooltip: 'Remove',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _addCardSubscription() async {
+    final nameController = TextEditingController();
+    final amountController = TextEditingController();
+    
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: GlassCard(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.subscriptions,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      'Add Subscription/Bill',
+                      style: AppTheme.headingMedium,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: nameController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Name *',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  hintText: 'e.g., Netflix, Electric Bill',
+                  hintStyle: TextStyle(color: Colors.white38),
+                  prefixIcon: Icon(Icons.label, color: Colors.white70),
+                  filled: true,
+                  fillColor: Colors.white10,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: amountController,
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Amount (Optional)',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  hintText: 'Monthly amount',
+                  hintStyle: TextStyle(color: Colors.white38),
+                  prefixIcon: Icon(Icons.attach_money, color: Colors.white70),
+                  filled: true,
+                  fillColor: Colors.white10,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Add'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),
+      ),
+    );
+
+    if (result == true && mounted) {
+      if (nameController.text.isEmpty) {
+        _showErrorSnackBar('Subscription name is required');
+        return;
+      }
+
+      setState(() {
+        _cardSubscriptions.add({
+          'name': nameController.text,
+          'amount': amountController.text,
+        });
+      });
+      _showSuccessSnackBar('Subscription/Bill added');
+    }
+  }
+
+  void _editCardSubscription(int index) async {
+    final subscription = _cardSubscriptions[index];
+    final nameController = TextEditingController(text: subscription['name']);
+    final amountController = TextEditingController(text: subscription['amount']);
+    
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: GlassCard(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.edit,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      'Edit Subscription/Bill',
+                      style: AppTheme.headingMedium,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: nameController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Name *',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  prefixIcon: Icon(Icons.label, color: Colors.white70),
+                  filled: true,
+                  fillColor: Colors.white10,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: amountController,
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Amount',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  prefixIcon: Icon(Icons.attach_money, color: Colors.white70),
+                  filled: true,
+                  fillColor: Colors.white10,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Update'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),
+      ),
+    );
+
+    if (result == true && mounted) {
+      if (nameController.text.isEmpty) {
+        _showErrorSnackBar('Subscription name is required');
+        return;
+      }
+
+      setState(() {
+        _cardSubscriptions[index] = {
+          'name': nameController.text,
+          'amount': amountController.text,
+        };
+      });
+      _showSuccessSnackBar('Subscription/Bill updated');
+    }
+  }
+
+  void _removeCardSubscription(int index) {
+    setState(() {
+      _cardSubscriptions.removeAt(index);
+    });
+    _showSuccessSnackBar('Subscription/Bill removed');
+  }
+
+  Widget _buildCardSubAccountsSection() {
+    return GlassCard(
+      gradient: [
+        Colors.deepPurple.withOpacity(0.2),
+        Colors.deepPurple.withOpacity(0.05),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.account_tree, color: Colors.white70, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Linked Cards',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  // Add sub-card button
+                  IconButton(
+                    onPressed: _openCardSubAccountsScreen,
+                    icon: const Icon(Icons.add_circle, color: Colors.deepPurple),
+                    tooltip: 'Add linked card',
+                  ),
+                  // View all sub-cards button
+                  if (_cardSubAccounts.isNotEmpty)
+                    IconButton(
+                      onPressed: _openCardSubAccountsScreen,
+                      icon: const Icon(Icons.arrow_forward, color: Colors.deepPurple),
+                      tooltip: 'View all linked cards',
+                    ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Additional cards linked to this account (${_cardSubAccounts.length})',
+            style: AppTheme.caption,
+          ),
+          const SizedBox(height: 12),
+          if (_cardSubAccounts.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: TextButton.icon(
+                  onPressed: _openCardSubAccountsScreen,
+                  icon: const Icon(Icons.add, color: Colors.white70),
+                  label: const Text(
+                    'Add linked card (e.g., Virtual Card, Additional Card)',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+              ),
+            )
+          else
+            Column(
+              children: [
+                // Show first 2 sub-cards as preview
+                ..._cardSubAccounts.take(2).toList().map((subCard) {
+                  return _buildCardSubAccountPreviewCard(subCard);
+                }).toList(),
+                if (_cardSubAccounts.length > 2) ...[
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: _openCardSubAccountsScreen,
+                    icon: const Icon(Icons.arrow_forward, size: 18),
+                    label: Text(
+                      'View all ${_cardSubAccounts.length} linked cards',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+        ],
+      ),
+    ).animate().fadeIn(delay: 550.ms).slideY(begin: -0.2);
+  }
+
+  Widget _buildCardSubAccountPreviewCard(Map<String, dynamic> subCard) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.deepPurple.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: Colors.deepPurple.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(
+                Icons.credit_card,
+                color: Colors.white,
+                size: 16,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                subCard['accountName']?.toString() ?? 'Linked Card',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const Icon(Icons.check_circle, color: Colors.green, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openCardSubAccountsScreen() async {
+    final cardName = _cardNameController.text.isEmpty 
+        ? 'Main Card' 
+        : _cardNameController.text;
+    
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SubAccountsScreen(
+          subAccounts: _cardSubAccounts,
+          mainAccountName: cardName,
+          onSubAccountsChanged: (updatedSubAccounts) {
+            setState(() {
+              _cardSubAccounts = updatedSubAccounts;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildEncryptionToggle() {
     return GlassCard(
       child: Row(
@@ -1801,6 +2614,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _accountNameController.dispose();
     _accountPasswordController.dispose();
     _planNameController.dispose();
+    _cardNameController.dispose();
+    _cardNumberController.dispose();
+    _cardCvvController.dispose();
     super.dispose();
   }
 }

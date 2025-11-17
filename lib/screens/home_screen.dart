@@ -120,12 +120,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
     
+    // Get the appropriate name based on note type
+    final mainAccountName = note.type == NoteType.bank
+        ? (note.meta!['cardName']?.toString() ?? note.title)
+        : (note.meta!['accountName']?.toString() ?? note.title);
+    
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => SubAccountsScreen(
           subAccounts: subAccounts,
-          mainAccountName: note.meta!['accountName']?.toString() ?? note.title,
+          mainAccountName: mainAccountName,
           onSubAccountsChanged: (updatedSubAccounts) {
             // Update the note with new sub-accounts
             _updateNoteSubAccounts(note, updatedSubAccounts);
@@ -139,7 +144,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   }
 
   void _addSubAccount(NoteModel note) async {
-    final mainAccountName = note.meta?['accountName']?.toString() ?? note.title;
+    // Get the appropriate name based on note type
+    final mainAccountName = note.type == NoteType.bank
+        ? (note.meta?['cardName']?.toString() ?? note.title)
+        : (note.meta?['accountName']?.toString() ?? note.title);
     
     final result = await Navigator.push(
       context,
@@ -381,7 +389,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     final color = AppTheme.getColorByType(note.type);
     final delay = (index * 100).ms;
     final isAccountNote = note.type == NoteType.account;
-    final subAccountsCount = isAccountNote && note.meta != null && note.meta!['subAccounts'] != null
+    final isBankNote = note.type == NoteType.bank;
+    final subAccountsCount = (isAccountNote || isBankNote) && note.meta != null && note.meta!['subAccounts'] != null
         ? (note.meta!['subAccounts'] as List).length
         : 0;
 
@@ -502,15 +511,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                     duration: 400.ms,
                     curve: Curves.easeOutCubic,
                   ),
-              // Action buttons for Account notes
-              if (isAccountNote)
+              // Action buttons for Account and Bank notes
+              if (isAccountNote || isBankNote)
                 Positioned(
                   right: 8,
                   top: 8,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // View all sub-accounts button
+                      // View all sub-accounts/sub-cards button
                       if (subAccountsCount > 0) ...[
                         InkWell(
                           onTap: () => _navigateToSubAccounts(note),
@@ -533,8 +542,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                               clipBehavior: Clip.none,
                               alignment: Alignment.center,
                               children: [
-                                const Icon(
-                                  Icons.account_tree,
+                                Icon(
+                                  isBankNote ? Icons.credit_card : Icons.account_tree,
                                   size: 16,
                                   color: Colors.white,
                                 ),
@@ -574,7 +583,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                         ).animate().scale(delay: delay + 100.ms),
                         const SizedBox(width: 6),
                       ],
-                      // Add sub-account button
+                      // Add sub-account/sub-card button
                       InkWell(
                         onTap: () => _addSubAccount(note),
                         borderRadius: BorderRadius.circular(20),
