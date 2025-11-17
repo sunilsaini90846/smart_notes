@@ -87,7 +87,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => NoteEditorScreen(note: note),
+        builder: (context) => NoteEditorScreen(
+          note: note,
+          initialType: note == null ? _selectedType : null,
+        ),
       ),
     );
 
@@ -486,27 +489,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                           _formatDate(note.updatedAt),
                           style: AppTheme.caption,
                         ),
-                        const Spacer(),
-                        if (note.tags != null && note.tags!.isNotEmpty)
-                          Wrap(
-                            spacing: 4,
-                            children: note.tags!.take(2).map((tag) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  '#$tag',
-                                  style: AppTheme.caption.copyWith(fontSize: 10),
-                                ),
-                              );
-                            }).toList(),
-                          ),
                       ],
                     ),
                   ],

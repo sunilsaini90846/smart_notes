@@ -32,7 +32,11 @@ class NoteRepository {
 
   Future<void> _initializeBox() async {
     try {
-      _box = await Hive.openBox<NoteModel>(_boxName);
+      if (Hive.isBoxOpen(_boxName)) {
+        _box = Hive.box<NoteModel>(_boxName);
+      } else {
+        _box = await Hive.openBox<NoteModel>(_boxName);
+      }
       _isInitialized = true;
     } catch (e) {
       // If there's an error, reset the initialization state
@@ -42,8 +46,17 @@ class NoteRepository {
     }
   }
 
+  /// Ensure box is open before operations
+  Future<void> _ensureBoxOpen() async {
+    if (!_isInitialized || !_box.isOpen) {
+      _isInitialized = false;
+      _initializationFuture = null;
+      await initialize();
+    }
+  }
+
   /// Check if repository is initialized
-  bool get isInitialized => _isInitialized;
+  bool get isInitialized => _isInitialized && _box.isOpen;
 
   /// Get all notes
   List<NoteModel> getAllNotes() {
@@ -106,6 +119,8 @@ class NoteRepository {
     List<String>? tags,
     String? color,
   }) async {
+    await _ensureBoxOpen();
+    
     final id = _uuid.v4();
     
     // Encrypt content if needed
@@ -147,6 +162,8 @@ class NoteRepository {
     List<String>? tags,
     String? color,
   }) async {
+    await _ensureBoxOpen();
+    
     final existingNote = _box.get(id);
     if (existingNote == null) {
       throw NoteNotFoundException('Cannot update note: Note with id $id not found');
@@ -183,6 +200,8 @@ class NoteRepository {
 
   /// Delete a note
   Future<void> deleteNote(String id) async {
+    await _ensureBoxOpen();
+    
     try {
       await _box.delete(id);
       // Force flush to disk to prevent data loss
@@ -194,6 +213,8 @@ class NoteRepository {
 
   /// Delete multiple notes
   Future<void> deleteNotes(List<String> ids) async {
+    await _ensureBoxOpen();
+    
     try {
       await _box.deleteAll(ids);
       // Force flush to disk to prevent data loss
@@ -205,6 +226,8 @@ class NoteRepository {
 
   /// Delete all notes (use with caution)
   Future<void> deleteAllNotes() async {
+    await _ensureBoxOpen();
+    
     try {
       await _box.clear();
       // Force flush to disk to prevent data loss
@@ -260,6 +283,8 @@ class NoteRepository {
 
   /// Import notes from JSON
   Future<void> importNotes(List<Map<String, dynamic>> notesJson) async {
+    await _ensureBoxOpen();
+    
     try {
       for (final json in notesJson) {
         final note = NoteModel.fromJson(json);
@@ -273,12 +298,17 @@ class NoteRepository {
   }
 
   /// Close the box (call when app is closing)
+  /// Note: Usually not needed as Hive manages lifecycle automatically
   Future<void> close() async {
-    await _box.close();
+    if (_box.isOpen) {
+      await _box.close();
+      _isInitialized = false;
+    }
   }
 
   /// Compact the box (optimize storage)
   Future<void> compact() async {
+    await _ensureBoxOpen();
     await _box.compact();
   }
 }

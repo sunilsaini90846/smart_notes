@@ -8,8 +8,9 @@ import 'sub_accounts_screen.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   final NoteModel? note;
+  final String? initialType;
 
-  const NoteEditorScreen({super.key, this.note});
+  const NoteEditorScreen({super.key, this.note, this.initialType});
 
   @override
   State<NoteEditorScreen> createState() => _NoteEditorScreenState();
@@ -26,8 +27,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   String _selectedType = NoteType.plain;
   bool _isEncrypted = false;
   bool _showPassword = false;
-  List<String> _tags = [];
-  final TextEditingController _tagController = TextEditingController();
 
   bool _isSaving = false;
   bool _isUnlocked = false;
@@ -51,7 +50,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _titleController = TextEditingController(text: widget.note!.title);
       _selectedType = widget.note!.type;
       _isEncrypted = widget.note!.isEncrypted;
-      _tags = List.from(widget.note!.tags ?? []);
 
       // Load account-specific data if it's an account note
       if (_selectedType == NoteType.account && widget.note!.meta != null) {
@@ -77,6 +75,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _contentController = TextEditingController();
       _passwordController = TextEditingController();
       _isUnlocked = true;
+      
+      // Set initial type if provided (from filter selection)
+      if (widget.initialType != null) {
+        _selectedType = widget.initialType!;
+      }
     }
   }
 
@@ -304,7 +307,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           content: content,
           isEncrypted: _isEncrypted,
           password: _isEncrypted ? _passwordController.text : null,
-          tags: _tags.isEmpty ? null : _tags,
           meta: meta,
         );
       } else {
@@ -316,7 +318,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           content: content,
           isEncrypted: _isEncrypted,
           password: _isEncrypted ? _passwordController.text : null,
-          tags: _tags.isEmpty ? null : _tags,
           meta: meta,
         );
       }
@@ -380,20 +381,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     return buffer.toString();
   }
 
-  void _addTag() {
-    if (_tagController.text.isNotEmpty) {
-      setState(() {
-        if (!_tags.contains(_tagController.text)) {
-          _tags.add(_tagController.text);
-        }
-        _tagController.clear();
-      });
-    }
-  }
-
-  void _removeTag(String tag) {
-    setState(() => _tags.remove(tag));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -429,8 +416,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                           const SizedBox(height: 20),
                           _buildPasswordField(),
                         ],
-                        const SizedBox(height: 20),
-                        _buildTagsSection(),
                         const SizedBox(height: 30),
                         _buildSaveButton(),
                       ],
@@ -665,15 +650,53 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         
         const SizedBox(height: 16),
         
-        // Account Password
+        // Password Security Warning
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.orange.withOpacity(0.3),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orange.shade300,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Security Note: Passwords are stored in plain text. For maximum security, use the encryption toggle below the form to encrypt this entire note.',
+                  style: TextStyle(
+                    color: Colors.orange.shade100,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ).animate().fadeIn(delay: 380.ms),
+        
+        const SizedBox(height: 16),
+        
+        // Account Password (Optional)
         GlassCard(
           child: TextFormField(
             controller: _accountPasswordController,
             style: const TextStyle(color: Colors.white, fontSize: 16),
             obscureText: !_showAccountPassword,
             decoration: InputDecoration(
-              labelText: 'Password',
+              labelText: 'Password (Optional)',
               labelStyle: const TextStyle(color: Colors.white70),
+              hintText: 'Leave empty if not needed',
+              hintStyle: const TextStyle(color: Colors.white38),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -687,12 +710,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 ),
               ),
             ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter password';
-              }
-              return null;
-            },
+            // No validator - field is optional
           ),
         ).animate().fadeIn(delay: 400.ms).slideY(begin: -0.2),
         
@@ -1733,90 +1751,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.2);
   }
 
-  Widget _buildTagsSection() {
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.local_offer, color: Colors.white70, size: 20),
-              const SizedBox(width: 8),
-              const Text(
-                'Tags',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _tagController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Add a tag',
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  onSubmitted: (_) => _addTag(),
-                ),
-              ),
-              IconButton(
-                onPressed: _addTag,
-                icon: const Icon(Icons.add, color: Colors.white70),
-              ),
-            ],
-          ),
-          if (_tags.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _tags.map((tag) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '#$tag',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      const SizedBox(width: 6),
-                      GestureDetector(
-                        onTap: () => _removeTag(tag),
-                        child: const Icon(
-                          Icons.close,
-                          size: 16,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-        ],
-      ),
-    ).animate().fadeIn(delay: 500.ms).slideY(begin: -0.2);
-  }
 
   Widget _buildSaveButton() {
     return SizedBox(
@@ -1864,7 +1798,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _titleController.dispose();
     _contentController.dispose();
     _passwordController.dispose();
-    _tagController.dispose();
     _accountNameController.dispose();
     _accountPasswordController.dispose();
     _planNameController.dispose();

@@ -165,6 +165,20 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   Future<void> _deleteNote() async {
+    // If note is encrypted, require password verification first
+    if (_note.isEncrypted && _isLocked) {
+      _showErrorSnackBar('Please unlock the note before deleting');
+      return;
+    }
+
+    if (_note.isEncrypted && !_isLocked) {
+      // Ask for password confirmation
+      final passwordVerified = await _showPasswordVerificationDialog();
+      if (!passwordVerified) {
+        return;
+      }
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => Dialog(
@@ -240,6 +254,132 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         );
       }
     }
+  }
+
+  Future<bool> _showPasswordVerificationDialog() async {
+    final passwordController = TextEditingController();
+    bool showPassword = false;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: GlassCard(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.lock_outline,
+                    size: 64,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Verify Password',
+                    style: AppTheme.headingMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Enter password to confirm deletion',
+                    style: AppTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: passwordController,
+                    autofocus: true,
+                    obscureText: !showPassword,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Password',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      prefixIcon: const Icon(Icons.key, color: Colors.white70),
+                      suffixIcon: IconButton(
+                        onPressed: () {
+                          setDialogState(() {
+                            showPassword = !showPassword;
+                          });
+                        },
+                        icon: Icon(
+                          showPassword ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.1),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    onSubmitted: (_) {
+                      Navigator.pop(context, true);
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Verify & Delete'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),
+          );
+        },
+      ),
+    );
+
+    if (result == true && mounted) {
+      final password = passwordController.text;
+      
+      if (password.isEmpty) {
+        _showErrorSnackBar('Password cannot be empty');
+        return false;
+      }
+
+      try {
+        // Verify password by attempting to decrypt
+        _repository.decryptNoteContent(_note, password);
+        return true;
+      } catch (e) {
+        _showErrorSnackBar('Invalid password');
+        return false;
+      }
+    }
+
+    return false;
   }
 
   void _editNote() async {
@@ -1017,51 +1157,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             ],
           ),
         ).animate().fadeIn(delay: 350.ms).slideX(begin: 0.2),
-        if (_note.tags != null && _note.tags!.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.local_offer, color: Colors.white70, size: 20),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Tags',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _note.tags!.map((tag) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '#$tag',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.2),
-        ],
       ],
     );
   }

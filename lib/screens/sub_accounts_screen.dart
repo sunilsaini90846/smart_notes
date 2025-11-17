@@ -275,6 +275,10 @@ class _SubAccountsScreenState extends State<SubAccountsScreen> {
 
   Widget _buildSubAccountCard(int index) {
     final subAccount = _subAccounts[index];
+    final identifiers = subAccount['identifiers'] as List?;
+    final hasPassword = subAccount['accountPassword'] != null && 
+                        (subAccount['accountPassword'] as String).isNotEmpty;
+    final hasSubscription = subAccount['hasSubscription'] == true;
     
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -286,6 +290,7 @@ class _SubAccountsScreenState extends State<SubAccountsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header with Account Name and Actions
             Row(
               children: [
                 Container(
@@ -302,24 +307,13 @@ class _SubAccountsScreenState extends State<SubAccountsScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        subAccount['accountName']?.toString() ?? 'Sub-Account',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (subAccount['identifiers'] != null &&
-                          (subAccount['identifiers'] as List).isNotEmpty)
-                        Text(
-                          (subAccount['identifiers'] as List).first['value']?.toString() ?? '',
-                          style: AppTheme.caption,
-                        ),
-                    ],
+                  child: Text(
+                    subAccount['accountName']?.toString() ?? 'Sub-Account',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -332,24 +326,242 @@ class _SubAccountsScreenState extends State<SubAccountsScreen> {
                 ),
               ],
             ),
-            if (subAccount['hasSubscription'] == true) ...[
+            
+            // Identifiers Section
+            if (identifiers != null && identifiers.isNotEmpty) ...[
               const SizedBox(height: 12),
+              const Divider(color: Colors.white24),
+              const SizedBox(height: 8),
+              ...identifiers.map((identifier) {
+                final type = identifier['type']?.toString() ?? 'ID';
+                final value = identifier['value']?.toString() ?? '';
+                if (value.isEmpty) return const SizedBox.shrink();
+                
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        _getIdentifierIcon(type),
+                        color: Colors.white60,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              type,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 11,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              value,
+                              style: AppTheme.caption.copyWith(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy, size: 16),
+                        color: Colors.white38,
+                        onPressed: () => _copyToClipboard(value, 'Copied $type'),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ],
+            
+            // Password Section
+            if (hasPassword) ...[
+              const SizedBox(height: 8),
               const Divider(color: Colors.white24),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.subscriptions, color: Colors.white60, size: 16),
+                  const Icon(Icons.lock, color: Colors.white60, size: 16),
                   const SizedBox(width: 8),
-                  Text(
-                    subAccount['planName']?.toString() ?? 'Subscribed',
-                    style: AppTheme.caption,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Password',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.5),
+                            fontSize: 11,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '••••••••',
+                          style: AppTheme.caption.copyWith(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy, size: 16),
+                    color: Colors.white38,
+                    onPressed: () => _copyToClipboard(
+                      subAccount['accountPassword']?.toString() ?? '',
+                      'Password copied',
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
                 ],
+              ),
+            ],
+            
+            // Subscription Section
+            if (hasSubscription) ...[
+              const SizedBox(height: 8),
+              const Divider(color: Colors.white24),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.deepPurple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.deepPurple.withOpacity(0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.subscriptions,
+                          color: Colors.deepPurple,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          subAccount['planName']?.toString() ?? 'Subscription',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (subAccount['subscriptionStartDate'] != null ||
+                        subAccount['subscriptionEndDate'] != null) ...[
+                      const SizedBox(height: 8),
+                      if (subAccount['subscriptionStartDate'] != null)
+                        _buildDateRow(
+                          'Start Date',
+                          subAccount['subscriptionStartDate'].toString(),
+                        ),
+                      if (subAccount['subscriptionEndDate'] != null) ...[
+                        if (subAccount['subscriptionStartDate'] != null)
+                          const SizedBox(height: 4),
+                        _buildDateRow(
+                          'End Date',
+                          subAccount['subscriptionEndDate'].toString(),
+                          isEndDate: true,
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
               ),
             ],
           ],
         ),
       ).animate().fadeIn(delay: (100 + index * 50).ms).slideX(begin: -0.2),
+    );
+  }
+  
+  IconData _getIdentifierIcon(String type) {
+    switch (type.toLowerCase()) {
+      case 'email':
+        return Icons.email;
+      case 'phone number':
+        return Icons.phone;
+      case 'username':
+        return Icons.person;
+      default:
+        return Icons.info;
+    }
+  }
+  
+  Widget _buildDateRow(String label, String dateString, {bool isEndDate = false}) {
+    DateTime? date;
+    try {
+      date = DateTime.parse(dateString);
+    } catch (e) {
+      return const SizedBox.shrink();
+    }
+    
+    final formattedDate = '${date.day}/${date.month}/${date.year}';
+    final now = DateTime.now();
+    final isExpired = isEndDate && date.isBefore(now);
+    final isExpiringSoon = isEndDate && 
+                          date.isAfter(now) && 
+                          date.difference(now).inDays <= 30;
+    
+    return Row(
+      children: [
+        Text(
+          '$label: ',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.5),
+            fontSize: 12,
+          ),
+        ),
+        Text(
+          formattedDate,
+          style: TextStyle(
+            color: isExpired 
+                ? Colors.red 
+                : isExpiringSoon 
+                    ? Colors.orange 
+                    : Colors.white70,
+            fontSize: 12,
+            fontWeight: isExpired || isExpiringSoon ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        if (isExpired) ...[
+          const SizedBox(width: 4),
+          const Icon(Icons.warning, color: Colors.red, size: 12),
+        ] else if (isExpiringSoon) ...[
+          const SizedBox(width: 4),
+          const Icon(Icons.warning_amber, color: Colors.orange, size: 12),
+        ],
+      ],
+    );
+  }
+  
+  void _copyToClipboard(String text, String message) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 }
@@ -726,35 +938,73 @@ class _SubAccountEditorScreenState extends State<SubAccountEditorScreen> {
   }
 
   Widget _buildPasswordField() {
-    return GlassCard(
-      child: TextFormField(
-        controller: _passwordController,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
-        obscureText: !_showPassword,
-        decoration: InputDecoration(
-          labelText: 'Password',
-          labelStyle: const TextStyle(color: Colors.white70),
-          border: OutlineInputBorder(
+    return Column(
+      children: [
+        // Password Security Warning
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          icon: const Icon(Icons.lock, color: Colors.white70),
-          suffixIcon: IconButton(
-            onPressed: () => setState(() => _showPassword = !_showPassword),
-            icon: Icon(
-              _showPassword ? Icons.visibility_off : Icons.visibility,
-              color: Colors.white70,
+            border: Border.all(
+              color: Colors.orange.withOpacity(0.3),
+              width: 1.5,
             ),
           ),
-        ),
-        validator: (value) {
-          if (value == null || value.isEmpty) {
-            return 'Please enter password';
-          }
-          return null;
-        },
-      ),
-    ).animate().fadeIn(delay: 300.ms).slideY(begin: -0.2);
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orange.shade300,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Security Note: Passwords are stored in plain text. For maximum security, encrypt the main account note using the encryption toggle.',
+                  style: TextStyle(
+                    color: Colors.orange.shade100,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ).animate().fadeIn(delay: 280.ms),
+        
+        const SizedBox(height: 16),
+        
+        // Password Field (Optional)
+        GlassCard(
+          child: TextFormField(
+            controller: _passwordController,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            obscureText: !_showPassword,
+            decoration: InputDecoration(
+              labelText: 'Password (Optional)',
+              labelStyle: const TextStyle(color: Colors.white70),
+              hintText: 'Leave empty if not needed',
+              hintStyle: const TextStyle(color: Colors.white38),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              icon: const Icon(Icons.lock, color: Colors.white70),
+              suffixIcon: IconButton(
+                onPressed: () => setState(() => _showPassword = !_showPassword),
+                icon: Icon(
+                  _showPassword ? Icons.visibility_off : Icons.visibility,
+                  color: Colors.white70,
+                ),
+              ),
+            ),
+            // No validator - field is optional
+          ),
+        ).animate().fadeIn(delay: 300.ms).slideY(begin: -0.2),
+      ],
+    );
   }
 
   Widget _buildSubscriptionSection() {
