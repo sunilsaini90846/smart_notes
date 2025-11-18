@@ -269,16 +269,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       padding: const EdgeInsets.all(20),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () {
-              Scaffold.of(context).openDrawer();
+          Builder(
+            builder: (BuildContext context) {
+              return IconButton(
+                onPressed: () {
+                  Scaffold.of(context).openDrawer();
+                },
+                icon: const Icon(Icons.menu),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppTheme.surfaceColor.withOpacity(0.5),
+                  foregroundColor: Colors.white,
+                ),
+              ).animate().scale(delay: 100.ms);
             },
-            icon: const Icon(Icons.menu),
-            style: IconButton.styleFrom(
-              backgroundColor: AppTheme.surfaceColor.withOpacity(0.5),
-              foregroundColor: Colors.white,
-            ),
-          ).animate().scale(delay: 100.ms),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
