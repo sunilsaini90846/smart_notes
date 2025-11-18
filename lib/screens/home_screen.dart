@@ -5,10 +5,13 @@ import '../models/note_model.dart';
 import '../services/note_repository.dart';
 import '../utils/app_theme.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/kyntesso_logo.dart';
 import 'note_editor_screen.dart';
 import 'note_detail_screen.dart';
 import 'sub_accounts_screen.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,12 +29,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   bool _isSearching = false;
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
+  String _appVersion = '1.0.0';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeAndLoadNotes();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      setState(() {
+        _appVersion = packageInfo.version;
+      });
+    } catch (e) {
+      // If package info fails, keep default version
+      _appVersion = '1.0.0';
+    }
   }
 
   @override
@@ -213,6 +230,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: _buildDrawer(),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -251,6 +269,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       padding: const EdgeInsets.all(20),
       child: Row(
         children: [
+          IconButton(
+            onPressed: () {
+              Scaffold.of(context).openDrawer();
+            },
+            icon: const Icon(Icons.menu),
+            style: IconButton.styleFrom(
+              backgroundColor: AppTheme.surfaceColor.withOpacity(0.5),
+              foregroundColor: Colors.white,
+            ),
+          ).animate().scale(delay: 100.ms),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -687,6 +716,164 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       return '${difference.inDays}d ago';
     } else {
       return DateFormat('MMM d').format(date);
+    }
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      backgroundColor: AppTheme.backgroundColor,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: AppTheme.backgroundGradient,
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header with app name and logo
+              Container(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    const KyntessoLogo(size: 60, showText: false),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Account Note Book',
+                      style: AppTheme.headingMedium.copyWith(
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Secure Notes Manager',
+                      style: AppTheme.caption.copyWith(
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(
+                color: Colors.white24,
+                thickness: 1,
+                indent: 20,
+                endIndent: 20,
+              ),
+              // Menu Items
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  children: [
+                    _buildDrawerItem(
+                      icon: Icons.privacy_tip_outlined,
+                      title: 'Privacy Policy',
+                      onTap: () => _launchUrl('https://sunilsaini90846.github.io/smart_notes/privacy_policy.html'),
+                    ),
+                    _buildDrawerItem(
+                      icon: Icons.description_outlined,
+                      title: 'Terms & Conditions',
+                      onTap: () => _launchUrl('https://sunilsaini90846.github.io/smart_notes/terms_and_conditions.html'),
+                    ),
+                    _buildDrawerItem(
+                      icon: Icons.info_outline,
+                      title: 'App Version',
+                      trailing: Text(
+                        'v$_appVersion',
+                        style: AppTheme.bodyMedium.copyWith(
+                          color: Colors.white70,
+                        ),
+                      ),
+                      onTap: null,
+                    ),
+                  ],
+                ),
+              ),
+              // Footer with Kyntesso branding
+              Container(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    const Divider(
+                      color: Colors.white24,
+                      thickness: 1,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Powered by',
+                          style: AppTheme.caption.copyWith(
+                            color: Colors.white60,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const KyntessoLogo(size: 24, showText: true),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem({
+    required IconData icon,
+    required String title,
+    Widget? trailing,
+    VoidCallback? onTap,
+  }) {
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: Colors.white,
+      ),
+      title: Text(
+        title,
+        style: AppTheme.bodyLarge.copyWith(
+          color: Colors.white,
+        ),
+      ),
+      trailing: trailing,
+      onTap: onTap,
+      enabled: onTap != null,
+    );
+  }
+
+  Future<void> _launchUrl(String urlString) async {
+    try {
+      final uri = Uri.parse(urlString);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not open the link'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error opening link: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
