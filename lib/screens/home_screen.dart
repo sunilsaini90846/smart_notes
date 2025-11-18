@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../models/note_model.dart';
 import '../services/note_repository.dart';
 import '../utils/app_theme.dart';
@@ -805,7 +806,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                       thickness: 1,
                     ),
                     const SizedBox(height: 16),
-                    Row(
+                    Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
@@ -814,8 +815,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                             color: Colors.white60,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        const KyntessoLogo(size: 24, showText: true),
+                        const SizedBox(height: 8),
+                        SvgPicture.asset(
+                          'assets/kyntesso_logo_with_text.svg',
+                          height: 40,
+                          fit: BoxFit.contain,
+                        ),
                       ],
                     ),
                   ],
