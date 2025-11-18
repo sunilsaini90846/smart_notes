@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.kyntesso.accountnotebook"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -23,7 +23,7 @@ android {
         applicationId = "com.kyntesso.accountnotebook"
         // Specific SDK versions for production
         minSdk = 21  // Android 5.0 (Lollipop) - most compatible
-        targetSdk = 34  // Latest stable Android (Android 14)
+        targetSdk = 35  // Android 15 - Latest APIs for security and performance
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
