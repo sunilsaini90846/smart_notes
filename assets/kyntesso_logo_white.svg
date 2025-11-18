@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="600" height="200" viewBox="0 0 600 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Define gradients -->
+  <defs>
+    <!-- Shadow for white logo -->
+    <filter id="whiteShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+  
+  <!-- Logo icon with rounded rectangle - white version -->
+  <g transform="translate(20, 20)">
+    <rect x="0" y="0" width="160" height="160" rx="32" ry="32" 
+          fill="white" 
+          filter="url(#whiteShadow)"/>
+    
+    <!-- Letter "K" in gradient -->
+    <defs>
+      <linearGradient id="kGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#6B4EFF;stop-opacity:1" />
+        <stop offset="100%" style="stop-color:#FF6B9D;stop-opacity:1" />
+      </linearGradient>
+    </defs>
+    
+    <g transform="translate(80, 80)">
+      <!-- Vertical line of K -->
+      <rect x="-34" y="-60" width="20" height="120" rx="5" fill="url(#kGradient)"/>
+      
+      <!-- Upper diagonal of K -->
+      <path d="M -14 -20 L 40 -60 L 50 -46 L 4 -6 Z" fill="url(#kGradient)"/>
+      
+      <!-- Lower diagonal of K -->
+      <path d="M -14 20 L 40 60 L 50 46 L 4 6 Z" fill="url(#kGradient)"/>
+    </g>
+  </g>
+  
+  <!-- "Kyntesso" text in white -->
+  <text x="210" y="130" 
+        font-family="Arial, Helvetica, sans-serif" 
+        font-size="80" 
+        font-weight="bold" 
+        fill="white"
+        letter-spacing="3">
+    Kyntesso
+  </text>
+</svg>
+
