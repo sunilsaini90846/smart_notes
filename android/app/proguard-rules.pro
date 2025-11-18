@@ -7,6 +7,9 @@
 -keep class io.flutter.plugins.** { *; }
 -dontwarn io.flutter.embedding.**
 
+# Play Core (for Flutter Play Store split support)
+-dontwarn com.google.android.play.core.splitcompat.SplitCompatApplication
+
 # Hive Database
 -keep class * extends com.hivedb.** { *; }
 -keep class * implements com.hivedb.** { *; }
