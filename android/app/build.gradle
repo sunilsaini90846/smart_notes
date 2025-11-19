@@ -24,8 +24,8 @@ android {
         // Specific SDK versions for production
         minSdk = 21  // Android 5.0 (Lollipop) - most compatible
         targetSdk = 35  // Android 15 - Latest APIs for security and performance
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionCode = 2
+        versionName = 'ANB_2'
     }
 
     buildTypes {
