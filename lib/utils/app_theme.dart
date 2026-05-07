@@ -89,7 +89,7 @@ class AppTheme {
         bodyMedium: bodyMedium,
         bodySmall: caption,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: surfaceColor.withOpacity(0.3),
         elevation: 0,
         shape: RoundedRectangleBorder(
